@@ -416,4 +416,6 @@ Apply these rules idiomatically. The architecture is the same; the syntax differ
 - **Elixir/Haskell/F#** — modules as bounded contexts; pure functions + explicit data; behaviours/typeclasses as ports.
 - **Any language** — when in doubt: if the domain or application layer imports something from a framework or external library, it is wrong.
 
-For detailed per-ecosystem conventions, read `references/adapters.md`.
+For detailed per-ecosystem conventions, read: 
+-`references/adapters.md`.
+- `references/domain-error.md`
