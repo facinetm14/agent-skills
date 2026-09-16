@@ -3,6 +3,8 @@
 Loaded when the target stack is identified. The domain and application layers are always
 framework-agnostic — only the infrastructure layer adapts to idioms below.
 
+Domain and use case tests must run and pass without any database or HTTP server being started.
+
 ---
 
 ## TypeScript / JavaScript (framework-agnostic)
