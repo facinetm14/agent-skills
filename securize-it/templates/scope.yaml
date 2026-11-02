@@ -1,0 +1,74 @@
+# securize-it — Rules of Engagement (scope file)
+# Nothing in this engagement is tested unless it appears below.
+# Fill this out WITH the user before any aggressive step.
+
+engagement:
+  name: ""                      # e.g. "Q4 internal pentest - mobile banking app"
+  tester: ""                    # who is running the test
+  date_start: ""                # YYYY-MM-DD
+  date_end: ""                  # YYYY-MM-DD
+
+authorization:
+  # Two legitimate paths. Pick the one that matches, fill it, leave the other blank.
+  #
+  # The authorization record is an ENGAGEMENT OF RESPONSIBILITY, not a document
+  # the skill cryptographically verifies — it can't. By filling it in, the tester
+  # vouches that the authorization is real. That's what makes a traceable,
+  # accountable record: who said yes, to what named target, referenced how.
+
+  # Path A — you own the targets.
+  owner: false                  # true = tester owns/operates the targets
+
+  # Path B — a third party authorized you (a client, an employer, a friend
+  # whose app you're testing to report fixes to them, a bug-bounty program).
+  third_party:
+    authorized_by: ""           # WHO authorized — name/role/relationship ("Acme CISO", "my friend, app owner")
+    for_target: ""              # the EXACT named target the authorization covers — testing is bounded to this
+    authorization_ref: ""       # how it's evidenced: engagement letter ID, email, bounty scope URL, attached file name
+    purpose: "coordinated disclosure"  # why: report findings so the owner can fix them
+
+  attestation: >-
+    I confirm I own these targets, or a third party named above has authorized
+    me to test the named target and I vouch for that authorization. I will test
+    only the named scope and report findings for remediation. Testing is lawful
+    in the relevant jurisdiction.
+
+targets:
+  web:
+    - url: ""                   # https://staging.example.com
+      notes: ""                 # env (prod/staging), anything special
+  api:
+    - base_url: ""              # https://api.example.com/v2
+      schema: ""                # path/URL to OpenAPI or GraphQL endpoint, if any
+  android:
+    - package: ""               # com.example.app
+      apk_path: ""              # /path/to/app.apk
+      build: ""                 # version/build under test
+  ios:
+    - bundle_id: ""             # com.example.app
+      ipa_path: ""              # /path/to/app.ipa
+      build: ""
+
+out_of_scope:
+  # Third-party dependencies that appear in traffic but must NEVER be targeted.
+  - ""                          # e.g. accounts.google.com (OAuth IdP)
+  - ""                          # e.g. api.stripe.com (payments)
+  - ""                          # e.g. cloud metadata 169.254.169.254 unless explicitly allowed
+
+allowed_aggression:
+  # Everything defaults to false. Flip to true ONLY with the user's explicit OK.
+  active_scanning: true         # ZAP active scan, nuclei — generally safe on non-prod
+  auth_brute_force: false       # credential/token brute forcing
+  input_fuzzing: false          # fuzzers that may crash or DoS the target
+  dos_load_testing: false       # anything that stresses availability
+  data_mutation: false          # writes/deletes that change target state
+
+constraints:
+  windows: ""                   # when testing may run, e.g. "weeknights 20:00-06:00 CET"
+  rate_limit_rps: 10            # cap requests/sec to avoid knocking over the target
+  avoid_endpoints:              # specific paths to never hit (e.g. /admin/wipe)
+    - ""
+
+reporting:
+  format: "markdown"            # markdown | pdf
+  deliver_to: ""
