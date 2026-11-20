@@ -1,77 +1,41 @@
-# Good and Bad Tests
+# Behavior-focused tests
 
-## Good Tests
+Use this reference when choosing a difficult seam, designing complex tests, reviewing weak coverage, or recovering from an ineffective RED.
 
-**Integration-style**: Test through real interfaces, not mocks of internal parts.
+## Design the test around a break
+
+Before writing, identify the outcome callers depend on and a realistic defect that violates it. Choose the smallest stable public boundary that can expose that defect: a domain operation, application use case, API, CLI, or UI. Prefer a broader integration seam when the behavior arises from collaborating components. A pure domain function can itself be a public seam; integration tests are not mandatory for every behavior.
+
+Make expected values independent: derive them from requirements, worked examples, known fixtures, or independently checked properties. Avoid using the same production helper to compute actual and expected values. A test can have several assertions when they explain one cohesive behavior. Name the behavior and condition, not the internal steps.
 
 ```typescript
-// GOOD: Tests observable behavior
-test("user can checkout with valid cart", async () => {
-  const cart = createCart();
-  cart.add(product);
-  const result = await checkout(cart, paymentMethod);
-  expect(result.status).toBe("confirmed");
+// Weak: mirrors the implementation's calculation.
+expect(total(items)).toBe(items.reduce((s, item) => s + item.price, 0));
+
+// Stronger: a known result from the contract.
+expect(total([{ price: 10 }, { price: 5 }])).toBe(15);
+```
+
+```typescript
+// Observable state through public use cases.
+test('a registered user can be retrieved by id', async () => {
+  const created = await register({ name: 'Alice' });
+  expect(await getUser(created.id)).toMatchObject({ name: 'Alice' });
 });
 ```
 
-Characteristics:
+If persistence itself is the adapter's contract, query the real test database at that seam. Do not bypass higher-level interfaces merely to inspect their internals.
 
-- Tests behavior users/callers care about
-- Uses public API only
-- Survives internal refactors
-- Describes WHAT, not HOW
-- One logical assertion per test
+## Test selection and reliability
 
-## Bad Tests
+Choose representative normal cases and high-risk boundaries, validation failures, permissions, state transitions, and recovery paths. Add cases in order of risk and new information, not to reach an arbitrary coverage percentage. Prefer table-driven inputs for variations of one behavior when they remain readable; introduce new behaviors in separate RED/GREEN cycles.
 
-**Implementation-detail tests**: Coupled to internal structure.
+Keep tests deterministic, isolated, and repeatable. Control clocks, random seeds, external services, and shared state where needed. Use fixtures and test-owned cleanup. Do not add production-only seams or methods solely to expose private state or clean up tests; legitimate dependency injection and resource lifecycle APIs are fine.
 
-```typescript
-// BAD: Tests implementation details
-test("checkout calls paymentService.process", async () => {
-  const mockPayment = jest.mock(paymentService);
-  await checkout(cart, payment);
-  expect(mockPayment.process).toHaveBeenCalledWith(cart.total);
-});
-```
+Avoid tests that merely verify framework mechanics, private fields, exact source text, constants detached from behavior, or mocks that have no causal connection to the outcome. Assert exact messages, call order, or call counts only when the contract actually requires them. For scripts, exercise exit status, output and effects. For agent instructions, evaluate what the consuming agent does under realistic prompts, not whether text contains mandatory phrases.
 
-Red flags:
+## Fast mutation review
 
-- Mocking internal collaborators
-- Testing private methods
-- Asserting on call counts/order
-- Test breaks when refactoring without behavior change
-- Test name describes HOW not WHAT
-- Verifying through external means instead of interface
+For important behaviors, mentally introduce one plausible defect: wrong branch or value, missing validation, omitted write, extra side effect, or default return. Identify which test would fail. If none would, add a meaningful test through the loop or document why the risk is out of scope. For ambiguous or high-risk checks, an isolated temporary mutation can prove sensitivity; restore the exact pre-mutation state and rerun. Never edit user work or commit artificial mutations.
 
-```typescript
-// BAD: Bypasses interface to verify
-test("createUser saves to database", async () => {
-  await createUser({ name: "Alice" });
-  const row = await db.query("SELECT * FROM users WHERE name = ?", ["Alice"]);
-  expect(row).toBeDefined();
-});
-
-// GOOD: Verifies through interface
-test("createUser makes user retrievable", async () => {
-  const user = await createUser({ name: "Alice" });
-  const retrieved = await getUser(user.id);
-  expect(retrieved.name).toBe("Alice");
-});
-```
-
-**Tautological tests**: Expected value restates the implementation, so the test passes by construction.
-
-```typescript
-// BAD: Expected value is recomputed the way the code computes it
-test("calculateTotal sums line items", () => {
-  const items = [{ price: 10 }, { price: 5 }];
-  const expected = items.reduce((sum, i) => sum + i.price, 0);
-  expect(calculateTotal(items)).toBe(expected);
-});
-
-// GOOD: Expected value is an independent, known literal
-test("calculateTotal sums line items", () => {
-  expect(calculateTotal([{ price: 10 }, { price: 5 }])).toBe(15);
-});
-```
+A good test changes when its contract changes, not whenever its implementation changes.

@@ -1,37 +1,43 @@
 ---
 name: tdd
-description: Test-driven development. Use when the user wants to build features or fix bugs test-first, mentions "red-green-refactor", or wants integration tests.
+description: Use when implementing features, fixing bugs, changing observable behavior, writing regression or integration tests, or working test-first with red-green-refactor.
 ---
 
-# Test-Driven Development
+# Test-driven development
 
-TDD is the red → green loop. This skill is the reference that makes that loop produce tests worth keeping: what a good test is, where tests go, the anti-patterns, and the rules of the loop. Every section applies on every cycle — consult them before and during the loop, not after.
+**Never make a behavioral production change before executing a test that fails for the intended missing or incorrect behavior.** A predicted failure is not evidence.
 
-When exploring the codebase, read `CONTEXT.md` (if it exists) so test names and interface vocabulary match the project's domain language, and respect ADRs in the area you're touching.
+## Establish the contract
 
-## What a good test is
+- Inspect existing tests, project test commands, `CONTEXT.md` (if present), and relevant ADRs. Preserve user changes. Run a relevant baseline before editing existing behavior when feasible; record pre-existing failures.
+- Identify public seams (caller-visible interfaces), required behaviors, and high-risk cases. Use domain vocabulary. Confirm the seams and scope with the user unless already agreed or explicitly delegated. Do not reconfirm unchanged seams.
+- Default to **supervised mode**: after each verified RED, present the test and actual failure, then end the turn until the user approves GREEN. Explicit authorization for autonomous TDD removes only this approval gate, never the verification gates. Persist the chosen mode for the task; silence is not consent.
 
-Tests verify behavior through public interfaces, not implementation details. Code can change entirely; tests shouldn't. A good test reads like a specification — "user can checkout with valid cart" tells you exactly what capability exists — and survives refactors because it doesn't care about internal structure.
+## One vertical slice at a time
 
-See [tests.md](tests.md) for examples and [mocking.md](mocking.md) for mocking guidelines.
+### 1. RED — specify and prove
 
-## Seams — where tests go
+- Choose one observable behavior at an agreed seam. Name the realistic defect the test should catch. Write one focused test with expectations derived independently from the contract.
+- Exercise real application behavior through public interfaces. Use doubles only at justified boundaries. Read [tests.md](tests.md) for unfamiliar or complex test design; read [mocking.md](mocking.md) before introducing or changing doubles.
+- Run the targeted test before changing production behavior. Confirm the test was collected and failed for the intended reason. If it passes, investigate whether the behavior already exists or the test is ineffective. Do not manufacture failure. Fix unrelated setup, syntax, or environment errors and rerun. For a missing API, a narrow interface declaration or inert stub is allowed before RED only to make the test executable; it must not implement the behavior.
+- In supervised mode, provide the test (or path and diff), command, observed failure, and requested behavior. Stop until approval. In autonomous mode, record the same evidence and continue.
 
-A **seam** is the public boundary you test at: the interface where you observe behavior without reaching inside. Tests live at seams, never against internals.
+### 2. GREEN — implement and verify
 
-**Test only at pre-agreed seams.** Before writing any test, write down the seams under test and confirm them with the user. No test is written at an unconfirmed seam. You can't test everything — agreeing the seams up front is how testing effort lands on the critical paths and complex logic instead of every edge case.
+- Make the smallest coherent production change that satisfies the test and existing contracts. No speculative abstractions, unrelated changes, or weakened assertions.
+- Rerun the targeted test and relevant neighboring tests. If RED persists, diagnose the cause and fix the implementation; change the test only if its contract or setup is wrong, explain why, and re-establish valid RED before completing GREEN.
+- Keep tests with the implementation. Only after GREEN, optionally remove local duplication or clarify names without changing behavior; rerun affected tests. Defer broader refactoring to code review. For pure refactoring of existing code, first establish passing characterization coverage; do not invent a failing behavioral test.
 
-Ask: "What's the public interface, and which seams should we test?"
+Repeat from RED for the next behavior. Never batch speculative tests and implementation into separate horizontal phases. Add boundary/error cases in priority order as the contract requires.
 
-## Anti-patterns
+## Non-negotiable recovery rules
 
-- **Implementation-coupled** — mocks internal collaborators, tests private methods, or verifies through a side channel (querying the database instead of using the interface). The tell: the test breaks when you refactor but behavior hasn't changed.
-- **Tautological** — the assertion recomputes the expected value the way the code does (`expect(add(a, b)).toBe(a + b)`, a snapshot derived by hand the same way, a constant asserted equal to itself), so it passes by construction and can never disagree with the code. Expected values must come from an independent source of truth — a known-good literal, a worked example, the spec.
-- **Horizontal slicing** — writing all tests first, then all implementation. Bulk tests verify _imagined_ behavior: you test the _shape_ of things rather than user-facing behavior, the tests go insensitive to real changes, and you commit to test structure before understanding the implementation. Work in **vertical slices** instead — one test → one implementation → repeat, each test a **tracer bullet** that responds to what the last cycle taught you.
+- Implemented first? Isolate and safely revert only your premature behavioral edits, then start with RED. Never delete or reset user work. If isolation is unsafe, stop and explain; do not claim TDD compliance.
+- Cannot execute tests or achieve meaningful RED? Report the blocker. Do not implement the unverified slice without explicit permission to deviate. Prototypes, generated artifacts, or configuration changes that cannot be meaningfully exercised require an explicit exception; test observable effects where feasible.
+- Existing failures? Record them, distinguish confirmed pre-existing failures from new or unknown failures, and fix regressions within scope. Do not silently skip, quarantine, or rewrite failing checks.
 
-## Rules of the loop
+## Completion gate
 
-- **Red before green.** Write the failing test first, then only enough code to pass it. Don't anticipate future tests or add speculative features.
-- **ALWAYS SUBMIT THE FAILED TEST** !CRITICAL You MUST submit the failed test in Red format and wait for the user's approval before generating the Green code.
-- **One slice at a time.** One seam, one test, one minimal implementation per cycle.  
-- **Refactoring is not part of the loop.** It belongs to the review stage (see the `code-review` skill), not the red → green implementation cycle.
+Run the project's documented full test command after the final change (plus required checks). If unavailable or impractical, run the broadest feasible checks and state the limitation. Review whether plausible wrong outputs, branches, or missing side effects would be detected; add valuable missing cases through RED/GREEN.
+
+Report actual RED/GREEN evidence, behaviors covered, final commands/results, and all observed remaining failures or unrun checks. Never label an unrun or failing suite green. Do not claim completion or strict TDD compliance when required evidence is missing.

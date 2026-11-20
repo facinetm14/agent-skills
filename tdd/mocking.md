@@ -1,98 +1,40 @@
-# When to Mock
+# Test doubles and boundaries
 
-Mock at **system boundaries** only:
+Read before introducing or changing mocks, fakes, stubs, or spies.
 
-- External APIs (payment, email, etc.)
-- Databases (sometimes - prefer test DB)
-- Time/randomness
-- File system (sometimes)
+## Decide what to replace
 
-Don't mock:
+Keep the behavior under test and its internal application collaborators real by default. Replace only a dependency that is external, nondeterministic, unsafe, unavailable, or prohibitively expensive. Typical examples: remote services, clocks, random sources, payment gateways, and infrastructure ports. Prefer a real isolated database or filesystem when their semantics are part of the contract. Never call live production services for tests.
 
-- Your own classes/modules
-- Internal collaborators
-- Anything you control
+Inspect the real dependency's contract and side effects. Replace the narrow operation below the side effects the test needs. A double must reproduce the relevant documented inputs, results, errors, and state transitions with realistic values; do not fabricate responses that would be impossible in production. Cover important adapter behavior separately against an appropriate real or sandboxed integration. A faithful fake is not a substitute for testing constraints, transactions, or serialization that only real infrastructure can enforce.
 
-## Designing for Mockability
+## Choose the simplest faithful double
 
-At system boundaries, design interfaces that are easy to mock:
-
-**1. Use dependency injection**
-
-Pass external dependencies in rather than creating them internally:
+- Stub fixed boundary responses; use a fake for stateful behavior; use a spy or mock for meaningful outgoing interactions.
+- Prefer typed, small in-memory fakes for repository ports when storage semantics are not under test. Reuse existing fixtures and doubles before creating more.
+- Assert interaction arguments, counts or ordering only when they are externally observable requirements (e.g. exactly one payment charge or no email on rejection). Do not assert that a mock exists or that internal methods were called merely because they currently are.
+- Use dependency injection at genuine boundaries. Prefer operation-specific ports when they fit the domain; do not introduce a generic abstraction or new public interface merely to make a test easier.
 
 ```typescript
-// Easy to mock
-function processPayment(order, paymentClient) {
-  return paymentClient.charge(order.total);
-}
-
-// Hard to mock
-function processPayment(order) {
-  const client = new StripeClient(process.env.STRIPE_KEY);
-  return client.charge(order.total);
-}
-```
-
-**2. Prefer SDK-style interfaces over generic fetchers**
-
-Create specific functions for each external operation instead of one generic function with conditional logic:
-
-```typescript
-// GOOD: Each function is independently mockable
-const api = {
-  getUser: (id) => fetch(`/users/${id}`),
-  getOrders: (userId) => fetch(`/users/${userId}/orders`),
-  createOrder: (data) => fetch('/orders', { method: 'POST', body: data }),
-};
-
-// BAD: Mocking requires conditional logic inside the mock
-const api = {
-  fetch: (endpoint, options) => fetch(endpoint, options),
-};
-```
-
-The SDK approach means:
-- Each mock returns one specific shape
-- No conditional logic in test setup
-- Easier to see which endpoints a test exercises
-- Type safety per endpoint
-
-## TypeScript Port Mocking Example
-
-When mocking an infrastructure port (like a repository), prefer **InMemory fake implementations** over framework magic (`jest.fn()` or `vi.fn()`). This ensures compile-time type safety and high performance.
-
-```typescript
-// THE PORT (Defined in application/ports/ILoanRepository.ts)
-export interface ILoanRepository {
+interface LoanRepository {
   findById(id: string): Promise<Loan | null>;
   save(loan: Loan): Promise<void>;
 }
 
-// THE IN-MEMORY FAKE (Defined locally in your test file)
-export class InMemoryLoanRepository implements ILoanRepository {
-  public loans: Map<string, Loan> = new Map();
+class InMemoryLoanRepository implements LoanRepository {
+  private loans = new Map<string, Loan>();
 
   async findById(id: string): Promise<Loan | null> {
-    return this.loans.get(id) || null;
+    const loan = this.loans.get(id);
+    return loan ? structuredClone(loan) : null;
   }
 
   async save(loan: Loan): Promise<void> {
-    this.loans.set(loan.id, loan);
+    this.loans.set(loan.id, structuredClone(loan));
   }
 }
-
-// GOOD TEST USAGE (No external mocking library needed)
-test("should approve loan when criteria are met", async () => {
-  const fakeRepository = new InMemoryLoanRepository();
-  const useCase = new ApproveLoanUseCase(fakeRepository); // Constructor injection
-  
-  // Setup state safely via public fields or methods
-  fakeRepository.loans.set("loan-1", new Loan({ id: "loan-1", status: "PENDING" }));
-
-  await useCase.execute({ loanId: "loan-1" });
-
-  const updatedLoan = await fakeRepository.findById("loan-1");
-  expect(updatedLoan?.status).toBe("APPROVED");
-});
 ```
+
+Illustrative only: this fake assumes Loan is a cloneable data record and the real port has equivalent copy semantics. Adapt it to the actual contract (e.g. domain entity reconstruction, uniqueness and write behavior). Seed through the port, exercise the real use case, and assert the outcome at the agreed seam.
+
+If double setup dominates the test, its behavior is hard to explain, or multiple internal modules need replacement, simplify the test boundary or use a real integration instead.
